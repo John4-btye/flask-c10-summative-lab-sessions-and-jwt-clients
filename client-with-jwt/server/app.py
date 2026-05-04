@@ -19,7 +19,7 @@ api = Api(app)
 
 class Signup(Resource):
     def post(self):
-        data = request.get_json()
+        data = request.get_json() or {}
 
         username = data.get("username")
         password = data.get("password")
@@ -53,7 +53,10 @@ class Signup(Resource):
 
 class Login(Resource):
     def post(self):
-        data = request.get_json()
+        data = request.get_json() or {}
+
+        if not data.get("username") or not data.get("password"):
+            return {"error": "Username and password required"}, 400
 
         user = User.query.filter_by(username=data.get("username")).first()
 
@@ -75,7 +78,7 @@ class Me(Resource):
     @jwt_required()
     def get(self):
         user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
 
         if not user:
             return {"error": "User not found"}, 404
@@ -99,7 +102,9 @@ class JournalEntries(Resource):
         page = int(request.args.get("page", 1))
         per_page = int(request.args.get("per_page", 5))
 
-        pagination = JournalEntry.query.filter_by(user_id=user_id)\
+        pagination = JournalEntry.query\
+            .filter_by(user_id=user_id)\
+            .order_by(JournalEntry.id.desc())\
             .paginate(page=page, per_page=per_page)
 
         return {
@@ -118,10 +123,10 @@ class JournalEntries(Resource):
     @jwt_required()
     def post(self):
         user_id = get_jwt_identity()
-        data = request.get_json()
+        data = request.get_json() or {}
 
         if not data.get("title") or not data.get("content"):
-            return {"error": "Missing fields"}, 400
+            return {"error": "Title and content required"}, 400
 
         entry = JournalEntry(
             title=data["title"],
@@ -140,7 +145,7 @@ class JournalEntryByID(Resource):
     @jwt_required()
     def patch(self, id):
         user_id = get_jwt_identity()
-        entry = JournalEntry.query.get(id)
+        entry = db.session.get(JournalEntry, id)
 
         if not entry:
             return {"error": "Not found"}, 404
@@ -148,7 +153,7 @@ class JournalEntryByID(Resource):
         if entry.user_id != user_id:
             return {"error": "Unauthorized"}, 403
 
-        data = request.get_json()
+        data = request.get_json() or {}
 
         entry.title = data.get("title", entry.title)
         entry.content = data.get("content", entry.content)
@@ -160,7 +165,7 @@ class JournalEntryByID(Resource):
     @jwt_required()
     def delete(self, id):
         user_id = get_jwt_identity()
-        entry = JournalEntry.query.get(id)
+        entry = db.session.get(JournalEntry, id)
 
         if not entry:
             return {"error": "Not found"}, 404
